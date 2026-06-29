@@ -52,6 +52,52 @@ and is never shipped to the browser. Sessions are written to `./sessions/*.md`.
 
    Open <http://localhost:3000>.
 
+## Troubleshooting: `invalid x-api-key` / 401
+
+If extraction fails with `401 invalid x-api-key`, the key reaching Anthropic is
+wrong. Diagnose it in seconds:
+
+- **Visit <http://localhost:3000/api/health>.** It reports (masked, no secret)
+  exactly what the server loaded: whether the key is present, its `prefix` and
+  `length`, whether it `looksValid` (starts with `sk-ant-`), whether it had
+  `hadQuotes`/`hadWhitespace`, the effective `baseUrl.host`, and whether an
+  `authTokenSet`. Common readings:
+  - `present: false` → the key isn't being loaded (wrong file/var, or dev server
+    not restarted).
+  - `looksValid: false` / unexpected `prefix` → it's not an API key (e.g. an
+    OAuth/CLI token). Use a real key from the
+    [Claude Console](https://console.anthropic.com/) — it starts with `sk-ant-`.
+  - `hadQuotes`/`hadWhitespace: true` → fix the `.env.local` line (see below).
+  - `baseUrl.host` is not `api.anthropic.com`, or `authTokenSet: true` → a
+    shadowing env var is in play (see below).
+
+Checklist:
+
+1. The `.env.local` line must be **one line, unquoted, no surrounding spaces**:
+
+   ```
+   ANTHROPIC_API_KEY=sk-ant-...
+   ```
+
+   Not `ANTHROPIC_API_KEY="sk-ant-..."` and not `ANTHROPIC_API_KEY = sk-ant-...`.
+
+2. **Restart the dev server** after creating or editing `.env.local` — env is
+   read at startup, not on the fly.
+
+3. **Shell-exported variables override `.env.local`.** Next.js does not override
+   a variable already present in your shell. Check and clear them:
+
+   ```bash
+   env | grep ANTHROPIC
+   # if any are set:
+   unset ANTHROPIC_API_KEY ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN
+   ```
+
+   Then restart `npm run dev`. (`ANTHROPIC_BASE_URL` is common inside hosted /
+   proxied environments — it sends your key to a proxy that rejects it.)
+
+4. Confirm the key's workspace has access to `claude-opus-4-8` in the Console.
+
 ## Usage
 
 1. On the home page, enter a **session name** and **design prose**, then click
