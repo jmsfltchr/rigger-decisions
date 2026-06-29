@@ -30,23 +30,22 @@ const ExtractionSchema = z.object({
     .min(1),
 });
 
-const SYSTEM_PROMPT = `You decompose a prose description of a software/system design into a precise, auditable list of "blocks".
-
-Each block is one atomic statement about the design and is exactly one of:
+// Classification + ACE rules shared by extraction and refinement.
+const SHARED_RULES = `Each block is one atomic statement about the design and is exactly one of:
 - a DESIGN DECISION ("decision"): a choice the design makes about how the system is built or behaves.
 - BACKGROUND CONTEXT ("context"): a fact about the problem, domain, constraints, or environment that frames the design but is not itself a choice.
 
-Tag every block by HOW you derived it from the prose:
-- "directly_stated": the prose states it explicitly.
-- "implied": the prose strongly suggests it without stating it outright.
-- "deduced": it follows by logical necessity from what the prose states.
-- "inferred": a reasonable but non-necessary reading of the prose.
+Tag every block by HOW you derived it from the source material:
+- "directly_stated": the source states it explicitly.
+- "implied": the source strongly suggests it without stating it outright.
+- "deduced": it follows by logical necessity from what the source states.
+- "inferred": a reasonable but non-necessary reading of the source.
 
 Categorise every block as:
 - "fixed": a fixed, immutable fact or constraint that must hold.
 - "variable": something that could reasonably be changed, tuned, or chosen differently.
 
-AMBIGUITY: If the prose is genuinely ambiguous about a block — it could be read in more than one defensible way — emit MULTIPLE variations for that block instead of guessing. Each variation has its own content, tag, and category. When the prose is clear, emit a single variation.
+AMBIGUITY: If the source is genuinely ambiguous about a block — it could be read in more than one defensible way — emit MULTIPLE variations for that block instead of guessing. Each variation has its own content, tag, and category. When the source is clear, emit a single variation.
 
 ATTEMPTO CONTROLLED ENGLISH: Write every block's "content" in Attempto Controlled English (ACE):
 - One fact per sentence; short, simple, declarative sentences.
@@ -55,9 +54,21 @@ ATTEMPTO CONTROLLED ENGLISH: Write every block's "content" in Attempto Controlle
 - Use active voice and present tense.
 - Do NOT use pronouns (it, they, this, that) — repeat the noun instead.
 - Avoid vague words ("etc.", "and so on", "some"), conjunctions that join clauses, and relative ambiguity.
-- Name concrete subjects and objects explicitly.
+- Name concrete subjects and objects explicitly.`;
+
+const SYSTEM_PROMPT = `You decompose a prose description of a software/system design into a precise, auditable list of "blocks".
+
+${SHARED_RULES}
 
 Decompose thoroughly: prefer several small, single-fact blocks over one compound block. Preserve the order in which topics appear in the prose. Do not invent requirements that have no basis in the prose.`;
+
+const REFINE_SYSTEM_PROMPT = `You revise an existing set of design "blocks" in light of a user's clarifying comment.
+
+You are given the current set of blocks and a comment. Produce the UPDATED, COMPLETE set of blocks in the same format. Incorporate the comment: add new blocks, remove blocks the comment makes obsolete, modify wording, split a compound block, or merge duplicates as the comment requires. Keep every block that remains valid and is not contradicted by the comment. Return the whole set, not just the changes.
+
+${SHARED_RULES}
+
+Treat the current blocks and the user's comment together as the source. Preserve a sensible order. Do not invent requirements that have no basis in the current blocks or the comment.`;
 
 /**
  * Normalize a raw env value into a usable API key: trim surrounding whitespace
@@ -174,8 +185,14 @@ export async function extractBlocks(prose: string): Promise<Block[]> {
       `Claude did not return structured output (stop_reason: ${response.stop_reason}).`,
     );
   }
+  return buildBlocks(parsed.blocks);
+}
 
-  return parsed.blocks.map((b): Block => {
+type ParsedBlocks = z.infer<typeof ExtractionSchema>["blocks"];
+
+/** Turn validated model output into fully-formed Blocks (fresh ids, first variation active). */
+export function buildBlocks(parsed: ParsedBlocks): Block[] {
+  return parsed.map((b): Block => {
     const variations: Variation[] = b.variations.map((v) => ({
       id: id(),
       content: v.content,
@@ -185,9 +202,61 @@ export async function extractBlocks(prose: string): Promise<Block[]> {
     return {
       id: id(),
       kind: b.kind,
-      active: true,
       activeVariationId: variations[0].id,
       variations,
     };
   });
+}
+
+/** Render the current blocks into a readable list for the refine prompt. */
+function renderBlocks(blocks: Block[]): string {
+  return blocks
+    .map((b, i) => {
+      const variations = b.variations
+        .map((v) => {
+          const marker = v.id === b.activeVariationId ? "active" : "alternative";
+          return `    - [${marker}] tag=${v.tag} category=${v.category}: ${v.content}`;
+        })
+        .join("\n");
+      return `${i + 1}. kind=${b.kind}\n${variations}`;
+    })
+    .join("\n");
+}
+
+/**
+ * Revise an existing set of blocks given a user's clarifying comment. Returns a
+ * fresh, complete set of Blocks (new ids, first variation active).
+ */
+export async function refineBlocks(
+  current: Block[],
+  comment: string,
+): Promise<Block[]> {
+  let response;
+  try {
+    response = await client().beta.messages.parse({
+      model: "claude-opus-4-8",
+      max_tokens: 16000,
+      system: REFINE_SYSTEM_PROMPT,
+      output_format: betaZodOutputFormat(ExtractionSchema),
+      messages: [
+        {
+          role: "user",
+          content:
+            `Current blocks:\n${renderBlocks(current)}\n\n` +
+            `User comment:\n${comment}\n\n` +
+            `Produce the updated, complete set of blocks.`,
+        },
+      ],
+    });
+  } catch (err) {
+    throw translateApiError(err);
+  }
+
+  const parsed = response.parsed_output;
+  if (!parsed) {
+    throw new Error(
+      `Claude did not return structured output (stop_reason: ${response.stop_reason}).`,
+    );
+  }
+  return buildBlocks(parsed.blocks);
 }

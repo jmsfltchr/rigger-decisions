@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractBlocks } from "@/lib/anthropic";
+import { commitSessions } from "@/lib/git";
 import {
   listSessions,
   sessionExists,
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     const blocks = await extractBlocks(prose);
     const session: Session = { name, prose, blocks };
     await writeSession(s, session);
+    await commitSessions(`Create ${name}`);
     return NextResponse.json({ slug: s, session }, { status: 201 });
   } catch (err) {
     return NextResponse.json(

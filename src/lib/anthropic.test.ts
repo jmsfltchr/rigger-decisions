@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { anthropicDiagnostics, normalizeApiKey } from "./anthropic";
+import {
+  anthropicDiagnostics,
+  buildBlocks,
+  normalizeApiKey,
+} from "./anthropic";
 
 describe("normalizeApiKey", () => {
   it("returns a clean key unchanged", () => {
@@ -68,5 +72,41 @@ describe("anthropicDiagnostics", () => {
     const d = anthropicDiagnostics();
     expect(d.apiKey.present).toBe(true);
     expect(d.apiKey.looksValid).toBe(false);
+  });
+});
+
+describe("buildBlocks", () => {
+  it("assigns unique ids and makes the first variation active", () => {
+    const blocks = buildBlocks([
+      {
+        kind: "decision",
+        variations: [
+          { content: "A.", tag: "directly_stated", category: "fixed" },
+          { content: "B.", tag: "inferred", category: "variable" },
+        ],
+      },
+      {
+        kind: "context",
+        variations: [
+          { content: "C.", tag: "implied", category: "fixed" },
+        ],
+      },
+    ]);
+
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].kind).toBe("decision");
+    expect(blocks[0].variations).toHaveLength(2);
+    // first variation is the active one
+    expect(blocks[0].activeVariationId).toBe(blocks[0].variations[0].id);
+    // ids are unique across blocks and variations
+    const ids = [
+      blocks[0].id,
+      blocks[1].id,
+      ...blocks[0].variations.map((v) => v.id),
+      ...blocks[1].variations.map((v) => v.id),
+    ];
+    expect(new Set(ids).size).toBe(ids.length);
+    // no persisted active flag on the block
+    expect("active" in blocks[0]).toBe(false);
   });
 });

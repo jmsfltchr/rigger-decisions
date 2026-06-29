@@ -27,10 +27,6 @@ export default function BlockCard({
     onChange({ ...block, kind });
   }
 
-  function toggleActive() {
-    onChange({ ...block, active: !block.active });
-  }
-
   function selectVariation(id: string) {
     onChange({ ...block, activeVariationId: id });
   }
@@ -45,7 +41,7 @@ export default function BlockCard({
   }
 
   return (
-    <div className={`block ${block.active ? "" : "inactive"}`}>
+    <div className="block">
       <div className="spread">
         <div className="row">
           <span className={`badge ${block.kind}`}>{KIND_LABELS[block.kind]}</span>
@@ -55,14 +51,17 @@ export default function BlockCard({
           </span>
         </div>
         <div className="row">
-          <button className="subtle" onClick={toggleActive}>
-            {block.active ? "Deactivate" : "Activate"}
-          </button>
           <button
             className="danger subtle"
             onClick={() => {
-              if (confirm("Delete this block?")) onRemove(block.id);
+              if (
+                confirm(
+                  "Delete this block? It is removed from the document but kept in git history.",
+                )
+              )
+                onRemove(block.id);
             }}
+            title="Removes the block from the document. Recoverable from git history."
           >
             Delete
           </button>

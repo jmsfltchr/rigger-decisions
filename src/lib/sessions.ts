@@ -3,7 +3,7 @@ import path from "path";
 import { parse, serialize } from "./markdown";
 import type { Session } from "./types";
 
-const SESSIONS_DIR = path.join(process.cwd(), "sessions");
+export const SESSIONS_DIR = path.join(process.cwd(), "sessions");
 
 /** Turn a human session name into a safe filename slug (used as the URL id). */
 export function slug(name: string): string {

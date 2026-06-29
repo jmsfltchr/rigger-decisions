@@ -19,7 +19,6 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   }
 
   const prose = session.blocks
-    .filter((b) => b.active)
     .map((b) => activeVariation(b).content.trim())
     .filter(Boolean)
     .join("\n\n");

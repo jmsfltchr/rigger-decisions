@@ -11,8 +11,9 @@ next-env.d.ts
 .env.local
 .env*.local
 
-# session data (the markdown docs are user data, not source)
-/sessions/*.md
+# session data (user data + its own nested git history repo, not app source)
+/sessions/*
+!/sessions/.gitkeep
 
 # misc
 *.tsbuildinfo

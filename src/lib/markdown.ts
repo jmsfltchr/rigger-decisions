@@ -31,8 +31,7 @@ function renderBody(session: Session): string {
 
   lines.push("## Blocks", "");
   session.blocks.forEach((block, i) => {
-    const status = block.active ? "active" : "inactive";
-    lines.push(`### ${i + 1}. ${KIND_LABELS[block.kind]} (${status})`, "");
+    lines.push(`### ${i + 1}. ${KIND_LABELS[block.kind]}`, "");
     block.variations.forEach((v) => {
       const marker = v.id === block.activeVariationId ? "→ " : "  ";
       lines.push(
@@ -98,7 +97,6 @@ function coerceBlock(raw: unknown): Block | null {
   return {
     id: b.id,
     kind: b.kind as Kind,
-    active: b.active !== false, // default to active
     activeVariationId,
     variations,
   };

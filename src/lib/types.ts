@@ -44,15 +44,14 @@ export interface Variation {
 }
 
 /**
- * A single block of the design. kind and active are block-level. A block with
- * one variation is the common (unambiguous) case; more than one variation means
- * the prose was ambiguous and Claude offered alternative readings.
+ * A single block of the design. kind is block-level. A block with one variation
+ * is the common (unambiguous) case; more than one variation means the prose was
+ * ambiguous and Claude offered alternative readings. Removing a block deletes it
+ * from the doc — git history (see lib/git.ts) is the recovery path.
  */
 export interface Block {
   id: string;
   kind: Kind;
-  /** All blocks are active by default; the user can deactivate them. */
-  active: boolean;
   /** Which variation is the live one used for export. */
   activeVariationId: string;
   variations: Variation[];

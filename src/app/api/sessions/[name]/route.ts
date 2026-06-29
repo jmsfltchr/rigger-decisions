@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { commitSessions } from "@/lib/git";
 import {
   deleteSession,
   readSession,
@@ -50,6 +51,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
   try {
     await writeSession(name, session);
+    await commitSessions(`Update ${session.name}`);
     return NextResponse.json({ slug: name, session });
   } catch (err) {
     return NextResponse.json(
@@ -63,5 +65,6 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const { name } = await params;
   await deleteSession(name);
+  await commitSessions(`Delete ${name}`);
   return NextResponse.json({ ok: true });
 }

@@ -10,7 +10,6 @@ const sample: Session = {
     {
       id: "blk-1",
       kind: "decision",
-      active: true,
       activeVariationId: "var-1a",
       variations: [
         {
@@ -25,7 +24,6 @@ const sample: Session = {
       // ambiguous block with two variations; the second one is active
       id: "blk-2",
       kind: "decision",
-      active: false,
       activeVariationId: "var-2b",
       variations: [
         {
@@ -56,7 +54,6 @@ describe("markdown round-trip", () => {
     const block = round.blocks[1];
     expect(block.variations).toHaveLength(2);
     expect(block.activeVariationId).toBe("var-2b");
-    expect(block.active).toBe(false);
   });
 
   it("falls back the active variation if the stored id is missing", () => {

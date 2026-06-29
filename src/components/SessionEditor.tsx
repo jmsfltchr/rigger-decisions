@@ -18,6 +18,8 @@ export default function SessionEditor({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [reExtracting, setReExtracting] = useState(false);
+  const [comment, setComment] = useState("");
+  const [refining, setRefining] = useState(false);
   const firstRender = useRef(true);
 
   // Debounced auto-save whenever the session changes.
@@ -61,6 +63,28 @@ export default function SessionEditor({
     }));
   }, []);
 
+  async function refine() {
+    const text = comment.trim();
+    if (!text) return;
+    setRefining(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/sessions/${slug}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: text, blocks: session.blocks }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Refine failed.");
+      setSession(data.session as Session);
+      setComment("");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRefining(false);
+    }
+  }
+
   async function reExtract() {
     if (
       !confirm(
@@ -86,16 +110,12 @@ export default function SessionEditor({
     }
   }
 
-  const activeCount = session.blocks.filter((b) => b.active).length;
-
   return (
     <>
       <div className="spread">
         <div>
           <h1>{session.name}</h1>
-          <p className="muted">
-            {session.blocks.length} blocks · {activeCount} active
-          </p>
+          <p className="muted">{session.blocks.length} blocks</p>
         </div>
         <span className="save-status">
           {saveState === "saving" && "Saving…"}
@@ -130,6 +150,36 @@ export default function SessionEditor({
           onRemove={removeBlock}
         />
       ))}
+
+      <section className="panel" style={{ marginTop: 24 }}>
+        <h2 style={{ marginTop: 0 }}>Refine with a comment</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Describe a clarification or correction. Claude revises the current
+          blocks into an updated set in the same format, and the change is
+          committed to the session&rsquo;s git history.
+        </p>
+        <textarea
+          rows={4}
+          value={comment}
+          placeholder="e.g. The retry limit is fixed at three, not configurable. Add that the queue is FIFO."
+          onChange={(e) => setComment(e.target.value)}
+          disabled={refining}
+        />
+        <div className="row" style={{ marginTop: 12 }}>
+          <button
+            className="primary"
+            onClick={refine}
+            disabled={refining || !comment.trim()}
+          >
+            {refining ? "Refining…" : "Apply comment"}
+          </button>
+          {refining && (
+            <span className="muted">
+              Sending the current blocks and your comment to Claude…
+            </span>
+          )}
+        </div>
+      </section>
 
       <ExportPanel slug={slug} />
     </>
